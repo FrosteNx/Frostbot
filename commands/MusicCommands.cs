@@ -331,27 +331,6 @@ namespace Frostbot.commands
             };
 
             await ctx.Channel.SendMessageAsync(embed: skippedEmbed);
-
-            if(trackQueue.Any())
-            {
-                var nextTrack = trackQueue.First();
-                trackQueue.RemoveAt(0);
-                await conn.PlayAsync(nextTrack);
-
-                string musicDescription = $"Now playing: {nextTrack.Title} \n" +
-                                          $"Author: {nextTrack.Author} \n" +
-                                          $"Length: {nextTrack.Length} \n" +
-                                          $"URL: {nextTrack.Uri}";
-
-                var nowPlayingEmbed = new DiscordEmbedBuilder()
-                {
-                    Color = DiscordColor.Purple,
-                    Title = $"Succesfully joined channel {userVC.Name} and playing music",
-                    Description = musicDescription
-                };
-
-                await ctx.Channel.SendMessageAsync(embed: nowPlayingEmbed);
-            }
         }
 
         [Command("queue")]
