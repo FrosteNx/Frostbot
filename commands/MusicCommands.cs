@@ -74,5 +74,156 @@ namespace Frostbot.commands
                 await conn.DisconnectAsync();
             };
         }
+
+        [Command("pause")]
+        public async Task Pause(CommandContext ctx, [RemainingText] string query)
+        {
+            var userVC = ctx.Member.VoiceState.Channel;
+            var lavalinkInstance = ctx.Client.GetLavalink();
+
+            if (ctx.Member.VoiceState == null || userVC == null)
+            {
+                await ctx.Channel.SendMessageAsync("You need to enter a VC");
+                return;
+            }
+
+            if (!lavalinkInstance.ConnectedNodes.Any())
+            {
+                await ctx.Channel.SendMessageAsync("Connection is not established");
+                return;
+            }
+
+            if (userVC.Type != ChannelType.Voice)
+            {
+                await ctx.Channel.SendMessageAsync("You need to enter a valid VC");
+                return;
+            }
+
+            var node = lavalinkInstance.ConnectedNodes.Values.First();
+            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
+
+            if(conn == null) 
+            {
+                await ctx.Channel.SendMessageAsync("Connection failed");
+                return;
+            }
+
+            if(conn.CurrentState.CurrentTrack == null)
+            {
+                await ctx.Channel.SendMessageAsync("No track is playing now");
+                return;
+            }
+
+            await conn.PauseAsync();
+
+            var pausedEmbed = new DiscordEmbedBuilder()
+            {
+                Color = DiscordColor.Purple,
+                Title = "Track paused"
+            };
+
+            await ctx.Channel.SendMessageAsync(embed : pausedEmbed);
+        }
+
+        [Command("resume")]
+        public async Task Resume(CommandContext ctx, [RemainingText] string query)
+        {
+            var userVC = ctx.Member.VoiceState.Channel;
+            var lavalinkInstance = ctx.Client.GetLavalink();
+
+            if (ctx.Member.VoiceState == null || userVC == null)
+            {
+                await ctx.Channel.SendMessageAsync("You need to enter a VC");
+                return;
+            }
+
+            if (!lavalinkInstance.ConnectedNodes.Any())
+            {
+                await ctx.Channel.SendMessageAsync("Connection is not established");
+                return;
+            }
+
+            if (userVC.Type != ChannelType.Voice)
+            {
+                await ctx.Channel.SendMessageAsync("You need to enter a valid VC");
+                return;
+            }
+
+            var node = lavalinkInstance.ConnectedNodes.Values.First();
+            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
+
+            if (conn == null)
+            {
+                await ctx.Channel.SendMessageAsync("Connection failed");
+                return;
+            }
+
+            if (conn.CurrentState.CurrentTrack == null)
+            {
+                await ctx.Channel.SendMessageAsync("No track is playing now");
+                return;
+            }
+
+            await conn.ResumeAsync();
+
+            var resumedEmbed = new DiscordEmbedBuilder()
+            {
+                Color = DiscordColor.Purple,
+                Title = "Track resumed"
+            };
+
+            await ctx.Channel.SendMessageAsync(embed: resumedEmbed);
+        }
+
+        [Command("stop")]
+        public async Task Stop(CommandContext ctx, [RemainingText] string query)
+        {
+            var userVC = ctx.Member.VoiceState.Channel;
+            var lavalinkInstance = ctx.Client.GetLavalink();
+
+            if (ctx.Member.VoiceState == null || userVC == null)
+            {
+                await ctx.Channel.SendMessageAsync("You need to enter a VC");
+                return;
+            }
+
+            if (!lavalinkInstance.ConnectedNodes.Any())
+            {
+                await ctx.Channel.SendMessageAsync("Connection is not established");
+                return;
+            }
+
+            if (userVC.Type != ChannelType.Voice)
+            {
+                await ctx.Channel.SendMessageAsync("You need to enter a valid VC");
+                return;
+            }
+
+            var node = lavalinkInstance.ConnectedNodes.Values.First();
+            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
+
+            if (conn == null)
+            {
+                await ctx.Channel.SendMessageAsync("Connection failed");
+                return;
+            }
+
+            if (conn.CurrentState.CurrentTrack == null)
+            {
+                await ctx.Channel.SendMessageAsync("No track is playing now");
+                return;
+            }
+
+            await conn.StopAsync();
+            await conn.DisconnectAsync();
+
+            var stoppedEmbed = new DiscordEmbedBuilder()
+            {
+                Color = DiscordColor.Purple,
+                Title = "Track stopped"
+            };
+
+            await ctx.Channel.SendMessageAsync(embed: stoppedEmbed);
+        }
     }
 }
