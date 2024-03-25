@@ -16,39 +16,24 @@ namespace Frostbot.commands
         private List<LavalinkTrack> trackQueue = new List<LavalinkTrack>();
         private Timer disconnectTimer;
         private int disconnectDelayInSeconds = 10;
-
-        private void StartDisconnectTimer(LavalinkGuildConnection conn)
-        {
-            disconnectTimer = new Timer(async (_) =>
-            {
-                await conn.DisconnectAsync();
-                disconnectTimer.Dispose();
-            }, null, disconnectDelayInSeconds * 1000, Timeout.Infinite);
-        }
+        private bool shouldSkipTrack = false;
 
         [Command("play")]
         public async Task Play(CommandContext ctx, [RemainingText] string query)
         {
+            if(disconnectTimer != null)
+                disconnectTimer?.Dispose();
+
+            await VoiceState(ctx);
+            if(ctx.Member.VoiceState == null)
+                return;
+
             var userVC = ctx.Member.VoiceState.Channel;
             var lavalinkInstance = ctx.Client.GetLavalink();
 
-            if(ctx.Member.VoiceState == null || userVC == null)
-            {
-                await ctx.Channel.SendMessageAsync("You need to enter a VC");
+            await ChannelAndConnection(ctx, userVC, lavalinkInstance);
+            if(userVC == null || !lavalinkInstance.ConnectedNodes.Any() || userVC.Type != ChannelType.Voice)
                 return;
-            }
-
-            if(!lavalinkInstance.ConnectedNodes.Any())
-            {
-                await ctx.Channel.SendMessageAsync("Connection is not established");
-                return;
-            }
-
-            if(userVC.Type != ChannelType.Voice)
-            {
-                await ctx.Channel.SendMessageAsync("You need to enter a valid VC");
-                return;
-            }
 
             var node = lavalinkInstance.ConnectedNodes.Values.First();
             await node.ConnectAsync(userVC);
@@ -62,7 +47,7 @@ namespace Frostbot.commands
 
             conn.PlaybackFinished += async (connection, args) => await LavalinkSocketOnTrackEnd(ctx, conn, args);
 
-            if (trackQueue.Any())
+            if(trackQueue.Any())
             {
                 var searchQuery = await node.Rest.GetTracksAsync(query);
                 if(searchQuery.LoadResultType != LavalinkLoadResultType.NoMatches && searchQuery.LoadResultType != LavalinkLoadResultType.LoadFailed)
@@ -73,27 +58,6 @@ namespace Frostbot.commands
                 }
                 else
                     await ctx.Channel.SendMessageAsync($"Failed to find track with provided query: {query}");
-
-                if(conn.CurrentState.CurrentTrack == null)
-                {
-                    var nextTrack = trackQueue.First();
-                    trackQueue.RemoveAt(0);
-                    await conn.PlayAsync(nextTrack);
-
-                    string musicDescription = $"Now playing: {nextTrack.Title} \n" +
-                                              $"Author: {nextTrack.Author} \n" +
-                                              $"Length: {nextTrack.Length} \n" +
-                                              $"URL: {nextTrack.Uri}";
-
-                    var nowPlayingEmbed = new DiscordEmbedBuilder()
-                    {
-                        Color = DiscordColor.Purple,
-                        Title = $"Succesfully joined channel {userVC.Name} and playing music",
-                        Description = musicDescription
-                    };
-
-                    await ctx.Channel.SendMessageAsync(embed: nowPlayingEmbed);
-                }
             }
             else
             {
@@ -108,68 +72,33 @@ namespace Frostbot.commands
 
                 await conn.PlayAsync(musicTrack);
 
-                string musicDescription = $"Now playing: {musicTrack.Title} \n" +
-                                          $"Author: {musicTrack.Author} \n" +
-                                          $"Length: {musicTrack.Length} \n" +
-                                          $"URL: {musicTrack.Uri}";
-
-                var nowPlayingEmbed = new DiscordEmbedBuilder()
-                {
-                    Color = DiscordColor.Purple,
-                    Title = $"Succesfully joined channel {userVC.Name} and playing music",
-                    Description = musicDescription
-                };
+                var nowPlayingEmbed = CreateNowPlayingEmbed(musicTrack);
 
                 await ctx.Channel.SendMessageAsync(embed: nowPlayingEmbed);
             }
-
-
-            /*
-            if(!trackQueue.Any())
-            {
-                StartDisconnectTimer(conn);
-            }
-            */
         }
 
         [Command("pause")]
         public async Task Pause(CommandContext ctx, [RemainingText] string query)
         {
+            await VoiceState(ctx);
+            if(ctx.Member.VoiceState == null)
+                return;
+
             var userVC = ctx.Member.VoiceState.Channel;
             var lavalinkInstance = ctx.Client.GetLavalink();
 
-            if(ctx.Member.VoiceState == null || userVC == null)
-            {
-                await ctx.Channel.SendMessageAsync("You need to enter a VC");
+            await ChannelAndConnection(ctx, userVC, lavalinkInstance);
+            if(userVC == null || !lavalinkInstance.ConnectedNodes.Any() || userVC.Type != ChannelType.Voice)
                 return;
-            }
-
-            if(!lavalinkInstance.ConnectedNodes.Any())
-            {
-                await ctx.Channel.SendMessageAsync("Connection is not established");
-                return;
-            }
-
-            if(userVC.Type != ChannelType.Voice)
-            {
-                await ctx.Channel.SendMessageAsync("You need to enter a valid VC");
-                return;
-            }
 
             var node = lavalinkInstance.ConnectedNodes.Values.First();
             var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
 
-            if(conn == null) 
-            {
-                await ctx.Channel.SendMessageAsync("Connection failed");
-                return;
-            }
+            await Connection(ctx, conn);
 
-            if(conn.CurrentState.CurrentTrack == null)
-            {
-                await ctx.Channel.SendMessageAsync("No track is playing now");
+            if(conn == null || conn.CurrentState.CurrentTrack == null)
                 return;
-            }
 
             await conn.PauseAsync();
 
@@ -185,41 +114,24 @@ namespace Frostbot.commands
         [Command("resume")]
         public async Task Resume(CommandContext ctx, [RemainingText] string query)
         {
+            await VoiceState(ctx);
+            if(ctx.Member.VoiceState == null)
+                return;
+
             var userVC = ctx.Member.VoiceState.Channel;
             var lavalinkInstance = ctx.Client.GetLavalink();
 
-            if(ctx.Member.VoiceState == null || userVC == null)
-            {
-                await ctx.Channel.SendMessageAsync("You need to enter a VC");
+            await ChannelAndConnection(ctx, userVC, lavalinkInstance);
+            if(userVC == null || !lavalinkInstance.ConnectedNodes.Any() || userVC.Type != ChannelType.Voice)
                 return;
-            }
-
-            if(!lavalinkInstance.ConnectedNodes.Any())
-            {
-                await ctx.Channel.SendMessageAsync("Connection is not established");
-                return;
-            }
-
-            if(userVC.Type != ChannelType.Voice)
-            {
-                await ctx.Channel.SendMessageAsync("You need to enter a valid VC");
-                return;
-            }
 
             var node = lavalinkInstance.ConnectedNodes.Values.First();
             var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
 
-            if(conn == null)
-            {
-                await ctx.Channel.SendMessageAsync("Connection failed");
-                return;
-            }
+            await Connection(ctx, conn);
 
-            if(conn.CurrentState.CurrentTrack == null)
-            {
-                await ctx.Channel.SendMessageAsync("No track is playing now");
+            if(conn == null || conn.CurrentState.CurrentTrack == null)
                 return;
-            }
 
             await conn.ResumeAsync();
 
@@ -235,41 +147,24 @@ namespace Frostbot.commands
         [Command("stop")]
         public async Task Stop(CommandContext ctx, [RemainingText] string query)
         {
+            await VoiceState(ctx);
+            if(ctx.Member.VoiceState == null)
+                return;
+
             var userVC = ctx.Member.VoiceState.Channel;
             var lavalinkInstance = ctx.Client.GetLavalink();
 
-            if(ctx.Member.VoiceState == null || userVC == null)
-            {
-                await ctx.Channel.SendMessageAsync("You need to enter a VC");
+            await ChannelAndConnection(ctx, userVC, lavalinkInstance);
+            if(userVC == null || !lavalinkInstance.ConnectedNodes.Any() || userVC.Type != ChannelType.Voice)
                 return;
-            }
-
-            if(!lavalinkInstance.ConnectedNodes.Any())
-            {
-                await ctx.Channel.SendMessageAsync("Connection is not established");
-                return;
-            }
-
-            if(userVC.Type != ChannelType.Voice)
-            {
-                await ctx.Channel.SendMessageAsync("You need to enter a valid VC");
-                return;
-            }
 
             var node = lavalinkInstance.ConnectedNodes.Values.First();
             var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
 
-            if(conn == null)
-            {
-                await ctx.Channel.SendMessageAsync("Connection failed");
-                return;
-            }
+            await Connection(ctx, conn);
 
-            if(conn.CurrentState.CurrentTrack == null)
-            {
-                await ctx.Channel.SendMessageAsync("No track is playing now");
+            if(conn == null || conn.CurrentState.CurrentTrack == null)
                 return;
-            }
 
             await conn.StopAsync();
             await conn.DisconnectAsync();
@@ -286,42 +181,26 @@ namespace Frostbot.commands
         [Command("skip")]
         public async Task Skip(CommandContext ctx, [RemainingText] string query)
         {
+            await VoiceState(ctx);
+            if(ctx.Member.VoiceState == null)
+                return;
+
             var userVC = ctx.Member.VoiceState.Channel;
             var lavalinkInstance = ctx.Client.GetLavalink();
 
-            if(ctx.Member.VoiceState == null || userVC == null)
-            {
-                await ctx.Channel.SendMessageAsync("You need to enter a VC");
+            await ChannelAndConnection(ctx, userVC, lavalinkInstance);
+            if(userVC == null || !lavalinkInstance.ConnectedNodes.Any() || userVC.Type != ChannelType.Voice)
                 return;
-            }
-
-            if(!lavalinkInstance.ConnectedNodes.Any())
-            {
-                await ctx.Channel.SendMessageAsync("Connection is not established");
-                return;
-            }
-
-            if(userVC.Type != ChannelType.Voice)
-            {
-                await ctx.Channel.SendMessageAsync("You need to enter a valid VC");
-                return;
-            }
 
             var node = lavalinkInstance.ConnectedNodes.Values.First();
             var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
 
-            if(conn == null)
-            {
-                await ctx.Channel.SendMessageAsync("Connection failed");
-                return;
-            }
+            await Connection(ctx, conn);
 
-            if(conn.CurrentState.CurrentTrack == null)
-            {
-                await ctx.Channel.SendMessageAsync("No track is playing now");
+            if(conn == null || conn.CurrentState.CurrentTrack == null)
                 return;
-            }
 
+            shouldSkipTrack = true;
             await conn.StopAsync();
 
             var skippedEmbed = new DiscordEmbedBuilder()
@@ -351,9 +230,7 @@ namespace Frostbot.commands
                 await ctx.Channel.SendMessageAsync($"Failed to find track with provided query: {query}");
 
             if(trackQueue.Count == 1)
-            {
                 disconnectTimer?.Dispose();
-            }
         }
 
         [Command("viewqueue")]
@@ -365,9 +242,18 @@ namespace Frostbot.commands
                 await ctx.Channel.SendMessageAsync($"Current queue:\n{queueDescription}");
             }
             else
-            {
                 await ctx.Channel.SendMessageAsync("Queue is empty");
+        }
+
+        private async Task LavalinkSocketOnTrackEnd(CommandContext ctx, LavalinkGuildConnection conn, TrackFinishEventArgs eventArgs)
+        {
+            if (shouldSkipTrack)
+            {
+                await PlayNextTrack(ctx, conn);
+                shouldSkipTrack = false;
             }
+            else if (conn.CurrentState.CurrentTrack == null)
+                await PlayNextTrack(ctx, conn);
         }
 
         private async Task PlayNextTrack(CommandContext ctx, LavalinkGuildConnection conn)
@@ -377,32 +263,67 @@ namespace Frostbot.commands
                 var nextTrack = trackQueue.First();
                 trackQueue.RemoveAt(0);
 
-                var lavalink = ctx.Client.GetLavalink();
-                var node = lavalink.ConnectedNodes.Values.First();
+                var lavalinkInstance = ctx.Client.GetLavalink();
+                var node = lavalinkInstance.ConnectedNodes.Values.First();
                 var guild = ctx.Guild; 
                 var guildConn = node.GetGuildConnection(guild); 
 
                 await guildConn.PlayAsync(nextTrack);
 
-                string musicDescription = $"Now playing: {nextTrack.Title} \n" +
-                                          $"Author: {nextTrack.Author} \n" +
-                                          $"Length: {nextTrack.Length} \n" +
-                                          $"URL: {nextTrack.Uri}";
-
-                var nowPlayingEmbed = new DiscordEmbedBuilder()
-                {
-                    Color = DiscordColor.Purple,
-                    Title = $"Successfully playing next track",
-                    Description = musicDescription
-                };
+                var nowPlayingEmbed = CreateNowPlayingEmbed(nextTrack);
 
                 await ctx.Channel.SendMessageAsync(embed: nowPlayingEmbed);
             }
+            else if(conn.CurrentState.CurrentTrack == null)
+                StartDisconnectTimer(conn);
         }
 
-        private async Task LavalinkSocketOnTrackEnd(CommandContext ctx, LavalinkGuildConnection conn, TrackFinishEventArgs eventArgs)
+        private void StartDisconnectTimer(LavalinkGuildConnection conn)
         {
-            await PlayNextTrack(ctx, conn);
+            disconnectTimer = new Timer(async (_) =>
+            {
+                await conn.DisconnectAsync();
+                disconnectTimer.Dispose();
+            }, null, disconnectDelayInSeconds * 1000, Timeout.Infinite);
+        }
+
+        private async Task VoiceState(CommandContext ctx)
+        {
+            if(ctx.Member.VoiceState == null)  
+                await ctx.Channel.SendMessageAsync("You need to enter a VC");
+        }
+
+        private async Task ChannelAndConnection(CommandContext ctx, DiscordChannel userVC, LavalinkExtension lavalinkInstance)
+        {
+            if(userVC == null)
+                await ctx.Channel.SendMessageAsync("You need to enter a VC");
+            else if(!lavalinkInstance.ConnectedNodes.Any())
+                await ctx.Channel.SendMessageAsync("Connection is not established");
+            else if(userVC.Type != ChannelType.Voice)
+                await ctx.Channel.SendMessageAsync("You need to enter a valid VC");
+        }
+
+        private async Task Connection(CommandContext ctx, LavalinkGuildConnection conn)
+        {
+            if(conn == null)
+                await ctx.Channel.SendMessageAsync("Connection failed");
+            else if (conn.CurrentState.CurrentTrack == null)
+                await ctx.Channel.SendMessageAsync("No track is playing now");
+        }
+
+        private DiscordEmbedBuilder CreateNowPlayingEmbed(LavalinkTrack track)
+        {
+            string musicDescription = $"Now playing: {track.Title} \n" +
+                                      $"Author: {track.Author} \n" +
+                                      $"Length: {track.Length} \n" +
+                                      $"URL: {track.Uri}";
+
+            return new DiscordEmbedBuilder()
+            {
+                Color = DiscordColor.Purple,
+                Title = "Successfully playing next track",
+                Description = musicDescription
+            };
         }
     }
 }
