@@ -1,15 +1,20 @@
-﻿using DSharpPlus;
+﻿using AngleSharp.Dom;
+using DSharpPlus;
 using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Attributes;
 using DSharpPlus.Entities;
 using DSharpPlus.Lavalink;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace Frostbot.commands
 {
     internal class MusicCommands : BaseCommandModule
     {
+        private List<LavalinkTrack> trackQueue = new List<LavalinkTrack>();
+
         [Command("play")]
         public async Task Play(CommandContext ctx, [RemainingText] string query)
         {
@@ -224,6 +229,38 @@ namespace Frostbot.commands
             };
 
             await ctx.Channel.SendMessageAsync(embed: stoppedEmbed);
+        }
+
+        [Command("queue")]
+        public async Task Queue(CommandContext ctx, [RemainingText] string query)
+        {
+            var lavalinkInstance = ctx.Client.GetLavalink();
+            var node = lavalinkInstance.ConnectedNodes.Values.First();
+
+            var searchQuery = await node.Rest.GetTracksAsync(query);
+
+            if(searchQuery.LoadResultType != LavalinkLoadResultType.NoMatches && searchQuery.LoadResultType != LavalinkLoadResultType.LoadFailed)
+            {
+                var musicTrack = searchQuery.Tracks.First();
+                trackQueue.Add(musicTrack);
+                await ctx.Channel.SendMessageAsync($"Added {musicTrack.Title} to the queue.");
+            }
+            else
+                await ctx.Channel.SendMessageAsync($"Failed to find track with provided query: {query}");
+        }
+
+        [Command("viewqueue")]
+        public async Task ViewQueue(CommandContext ctx)
+        {
+            if(trackQueue.Any())
+            {
+                var queueDescription = string.Join("\n", trackQueue.Select((track, index) => $"{index + 1}. {track.Title} - {track.Author}"));
+                await ctx.Channel.SendMessageAsync($"Current queue:\n{queueDescription}");
+            }
+            else
+            {
+                await ctx.Channel.SendMessageAsync("Queue is empty");
+            }
         }
     }
 }
