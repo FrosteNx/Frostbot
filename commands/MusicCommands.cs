@@ -4,6 +4,7 @@ using DSharpPlus.CommandsNext.Attributes;
 using DSharpPlus.Entities;
 using DSharpPlus.Lavalink;
 using DSharpPlus.Lavalink.EventArgs;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -20,7 +21,7 @@ namespace Frostbot.commands
         private Dictionary<ulong, bool> trackLoopingStates = new Dictionary<ulong, bool>();
         private LavalinkTrack loopTrack = null;
 
-        [Command("play")]
+        [Command("play"), Priority(0)]
         public async Task Play(CommandContext ctx, [RemainingText] string query)
         {
             if(disconnectTimer != null)
@@ -67,6 +68,66 @@ namespace Frostbot.commands
                 if(searchQuery.LoadResultType == LavalinkLoadResultType.NoMatches || searchQuery.LoadResultType == LavalinkLoadResultType.LoadFailed)
                 {
                     await ctx.Channel.SendMessageAsync($"Failed to find music with provided query: {query}");
+                    return;
+                }
+
+                var musicTrack = searchQuery.Tracks.First();
+
+                await conn.PlayAsync(musicTrack);
+
+                var nowPlayingEmbed = CreateNowPlayingEmbed(musicTrack);
+
+                await ctx.Channel.SendMessageAsync(embed: nowPlayingEmbed);
+            }
+        }
+
+        [Command("play"), Priority(1)]
+        public async Task PlayUrl(CommandContext ctx, [RemainingText] Uri url)
+        {
+            if(disconnectTimer != null)
+                disconnectTimer?.Dispose();
+
+            await VoiceState(ctx);
+            if(ctx.Member.VoiceState == null)
+                return;
+
+            var userVC = ctx.Member.VoiceState.Channel;
+            var lavalinkInstance = ctx.Client.GetLavalink();
+
+            await ChannelAndConnection(ctx, userVC, lavalinkInstance);
+            if (userVC == null || !lavalinkInstance.ConnectedNodes.Any() || userVC.Type != ChannelType.Voice)
+                return;
+
+            var node = lavalinkInstance.ConnectedNodes.Values.First();
+            await node.ConnectAsync(userVC);
+
+            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
+            if (conn == null)
+            {
+                await ctx.Channel.SendMessageAsync("Connection failed");
+                return;
+            }
+
+            conn.PlaybackFinished += async (connection, args) => await LavalinkSocketOnTrackEnd(ctx, conn, args);
+
+            if(trackQueue.Any())
+            {
+                var searchQuery = await node.Rest.GetTracksAsync(url);
+                if(searchQuery.LoadResultType != LavalinkLoadResultType.NoMatches && searchQuery.LoadResultType != LavalinkLoadResultType.LoadFailed)
+                {
+                    var musicTrack = searchQuery.Tracks.First();
+                    trackQueue.Add(musicTrack);
+                    await ctx.Channel.SendMessageAsync($"Added {musicTrack.Title} to the queue.");
+                }
+                else
+                    await ctx.Channel.SendMessageAsync($"Failed to find track with provided query: {url}");
+            }
+            else
+            {
+                var searchQuery = await node.Rest.GetTracksAsync(url);
+                if(searchQuery.LoadResultType == LavalinkLoadResultType.NoMatches || searchQuery.LoadResultType == LavalinkLoadResultType.LoadFailed)
+                {
+                    await ctx.Channel.SendMessageAsync($"Failed to find music with provided query: {url}");
                     return;
                 }
 
@@ -333,8 +394,8 @@ namespace Frostbot.commands
             await ctx.Channel.SendMessageAsync(embed: unloopEmbed);
         }
 
-        [Command("queue")]
-        public async Task Queue(CommandContext ctx, [RemainingText] string query)
+        [Command("queue"), Priority(0)]
+        public async Task QueueFromQuery(CommandContext ctx, [RemainingText] string query)
         {
             var lavalinkInstance = ctx.Client.GetLavalink();
             var node = lavalinkInstance.ConnectedNodes.Values.First();
@@ -351,6 +412,27 @@ namespace Frostbot.commands
                 await ctx.Channel.SendMessageAsync($"Failed to find track with provided query: {query}");
 
             if(trackQueue.Count == 1)
+                disconnectTimer?.Dispose();
+        }
+
+        [Command("queue"), Priority(1)]
+        public async Task QueueFromURL(CommandContext ctx, Uri url)
+        {
+            var lavalinkInstance = ctx.Client.GetLavalink();
+            var node = lavalinkInstance.ConnectedNodes.Values.First();
+
+            var searchQuery = await node.Rest.GetTracksAsync(url);
+
+            if (searchQuery.LoadResultType != LavalinkLoadResultType.NoMatches && searchQuery.LoadResultType != LavalinkLoadResultType.LoadFailed)
+            {
+                var musicTrack = searchQuery.Tracks.First();
+                trackQueue.Add(musicTrack);
+                await ctx.Channel.SendMessageAsync($"Added {musicTrack.Title} to the queue.");
+            }
+            else
+                await ctx.Channel.SendMessageAsync($"Failed to find track with provided URL: {url}");
+
+            if (trackQueue.Count == 1)
                 disconnectTimer?.Dispose();
         }
 
