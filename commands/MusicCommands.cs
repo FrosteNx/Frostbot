@@ -17,6 +17,8 @@ namespace Frostbot.commands
         private Timer disconnectTimer;
         private int disconnectDelayInSeconds = 10;
         private bool shouldSkipTrack = false;
+        private Dictionary<ulong, bool> trackLoopingStates = new Dictionary<ulong, bool>();
+        private LavalinkTrack loopTrack = null;
 
         [Command("play")]
         public async Task Play(CommandContext ctx, [RemainingText] string query)
@@ -79,7 +81,7 @@ namespace Frostbot.commands
         }
 
         [Command("pause")]
-        public async Task Pause(CommandContext ctx, [RemainingText] string query)
+        public async Task Pause(CommandContext ctx)
         {
             await VoiceState(ctx);
             if(ctx.Member.VoiceState == null)
@@ -96,7 +98,6 @@ namespace Frostbot.commands
             var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
 
             await Connection(ctx, conn);
-
             if(conn == null || conn.CurrentState.CurrentTrack == null)
                 return;
 
@@ -112,7 +113,7 @@ namespace Frostbot.commands
         }
 
         [Command("resume")]
-        public async Task Resume(CommandContext ctx, [RemainingText] string query)
+        public async Task Resume(CommandContext ctx)
         {
             await VoiceState(ctx);
             if(ctx.Member.VoiceState == null)
@@ -129,7 +130,6 @@ namespace Frostbot.commands
             var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
 
             await Connection(ctx, conn);
-
             if(conn == null || conn.CurrentState.CurrentTrack == null)
                 return;
 
@@ -145,7 +145,7 @@ namespace Frostbot.commands
         }
 
         [Command("stop")]
-        public async Task Stop(CommandContext ctx, [RemainingText] string query)
+        public async Task Stop(CommandContext ctx)
         {
             await VoiceState(ctx);
             if(ctx.Member.VoiceState == null)
@@ -162,7 +162,6 @@ namespace Frostbot.commands
             var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
 
             await Connection(ctx, conn);
-
             if(conn == null || conn.CurrentState.CurrentTrack == null)
                 return;
 
@@ -179,7 +178,7 @@ namespace Frostbot.commands
         }
 
         [Command("skip")]
-        public async Task Skip(CommandContext ctx, [RemainingText] string query)
+        public async Task Skip(CommandContext ctx)
         {
             await VoiceState(ctx);
             if(ctx.Member.VoiceState == null)
@@ -196,7 +195,6 @@ namespace Frostbot.commands
             var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
 
             await Connection(ctx, conn);
-
             if(conn == null || conn.CurrentState.CurrentTrack == null)
                 return;
 
@@ -210,6 +208,129 @@ namespace Frostbot.commands
             };
 
             await ctx.Channel.SendMessageAsync(embed: skippedEmbed);
+        }
+
+        [Command("repeat")]
+        public async Task Reapeat(CommandContext ctx)
+        {
+            await VoiceState(ctx);
+            if (ctx.Member.VoiceState == null)
+                return;
+
+            var userVC = ctx.Member.VoiceState.Channel;
+            var lavalinkInstance = ctx.Client.GetLavalink();
+
+            await ChannelAndConnection(ctx, userVC, lavalinkInstance);
+            if (userVC == null || !lavalinkInstance.ConnectedNodes.Any() || userVC.Type != ChannelType.Voice)
+                return;
+
+            var node = lavalinkInstance.ConnectedNodes.Values.First();
+            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
+
+            await Connection(ctx, conn);
+            if (conn == null || conn.CurrentState.CurrentTrack == null)
+                return;
+
+            var currentTrack = conn.CurrentState.CurrentTrack;
+            await conn.PlayAsync(currentTrack);
+
+            var repeatEmbed = new DiscordEmbedBuilder
+            {
+                Color = DiscordColor.Purple,
+                Title = "Current track is now repeating"
+            };
+
+            await ctx.Channel.SendMessageAsync(embed: repeatEmbed);
+        }
+
+        [Command("loop")]
+        public async Task Loop(CommandContext ctx)
+        {
+            await VoiceState(ctx);
+            if(ctx.Member.VoiceState == null)
+                return;
+
+            var userVC = ctx.Member.VoiceState.Channel;
+            var lavalinkInstance = ctx.Client.GetLavalink();
+
+            await ChannelAndConnection(ctx, userVC, lavalinkInstance);
+            if(userVC == null || !lavalinkInstance.ConnectedNodes.Any() || userVC.Type != ChannelType.Voice)
+                return;
+
+            var node = lavalinkInstance.ConnectedNodes.Values.First();
+            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
+
+            await Connection(ctx, conn);
+            if(conn == null || conn.CurrentState.CurrentTrack == null)
+                return;
+
+            if(trackLoopingStates.ContainsKey(ctx.Guild.Id) && trackLoopingStates[ctx.Guild.Id])
+            {
+                var loopEmbed_ = new DiscordEmbedBuilder
+                {
+                    Color = DiscordColor.Purple,
+                    Title = "Track looping is already enabled"
+                };
+
+                await ctx.Channel.SendMessageAsync(embed: loopEmbed_);
+                return;
+            }
+
+            trackLoopingStates[ctx.Guild.Id] = true;
+            loopTrack = conn.CurrentState.CurrentTrack;
+
+            var loopEmbed = new DiscordEmbedBuilder
+            {
+                Color = DiscordColor.Purple,
+                Title = "Track looping is now enabled"
+            };
+
+            await ctx.Channel.SendMessageAsync(embed: loopEmbed);
+        }
+
+        [Command("unloop")]
+        public async Task Unloop(CommandContext ctx)
+        {
+            await VoiceState(ctx);
+            if(ctx.Member.VoiceState == null)
+                return;
+
+            var userVC = ctx.Member.VoiceState.Channel;
+            var lavalinkInstance = ctx.Client.GetLavalink();
+
+            await ChannelAndConnection(ctx, userVC, lavalinkInstance);
+            if(userVC == null || !lavalinkInstance.ConnectedNodes.Any() || userVC.Type != ChannelType.Voice)
+                return;
+
+            var node = lavalinkInstance.ConnectedNodes.Values.First();
+            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
+
+            await Connection(ctx, conn);
+            if(conn == null || conn.CurrentState.CurrentTrack == null)
+                return;
+
+            if(!trackLoopingStates.ContainsKey(ctx.Guild.Id) && !trackLoopingStates[ctx.Guild.Id])
+            {
+                var unloopEmbed_ = new DiscordEmbedBuilder
+                {
+                    Color = DiscordColor.Purple,
+                    Title = "Track looping is already disabled"
+                };
+
+                await ctx.Channel.SendMessageAsync(embed: unloopEmbed_);
+                return;
+            }
+
+            trackLoopingStates[ctx.Guild.Id] = false;
+            loopTrack = null;
+
+            var unloopEmbed = new DiscordEmbedBuilder
+            {
+                Color = DiscordColor.Purple,
+                Title = "Track looping is now disabled"
+            };
+
+            await ctx.Channel.SendMessageAsync(embed: unloopEmbed);
         }
 
         [Command("queue")]
@@ -261,13 +382,21 @@ namespace Frostbot.commands
 
         private async Task LavalinkSocketOnTrackEnd(CommandContext ctx, LavalinkGuildConnection conn, TrackFinishEventArgs eventArgs)
         {
-            if (shouldSkipTrack)
+            if(shouldSkipTrack)
             {
                 await PlayNextTrack(ctx, conn);
                 shouldSkipTrack = false;
             }
-            else if (conn.CurrentState.CurrentTrack == null)
+            else if(conn.CurrentState.CurrentTrack == null)
+            {
+                if(trackLoopingStates.ContainsKey(ctx.Guild.Id) && trackLoopingStates[ctx.Guild.Id] && loopTrack != null)
+                {
+                    await conn.PlayAsync(loopTrack);
+                    return;
+                }
+
                 await PlayNextTrack(ctx, conn);
+            }
         }
 
         private async Task PlayNextTrack(CommandContext ctx, LavalinkGuildConnection conn)
