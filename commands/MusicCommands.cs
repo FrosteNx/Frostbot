@@ -238,11 +238,25 @@ namespace Frostbot.commands
         {
             if(trackQueue.Any())
             {
-                var queueDescription = string.Join("\n", trackQueue.Select((track, index) => $"{index + 1}. {track.Title} - {track.Author}"));
-                await ctx.Channel.SendMessageAsync($"Current queue:\n{queueDescription}");
+                var embed = new DiscordEmbedBuilder
+                {
+                    Color = DiscordColor.Purple,
+                    Title = "Current Queue",
+                    Description = string.Join("\n", trackQueue.Select((track, index) => $"{index + 1}. {track.Title} - {track.Author}"))
+                };
+
+                await ctx.RespondAsync(embed: embed);
             }
             else
-                await ctx.Channel.SendMessageAsync("Queue is empty");
+            {
+                var embed = new DiscordEmbedBuilder
+                {
+                    Color = DiscordColor.Purple,
+                    Title = "Queue is Empty"
+                };
+
+                await ctx.RespondAsync(embed: embed);
+            }
         }
 
         private async Task LavalinkSocketOnTrackEnd(CommandContext ctx, LavalinkGuildConnection conn, TrackFinishEventArgs eventArgs)
