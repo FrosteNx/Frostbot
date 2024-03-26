@@ -271,6 +271,117 @@ namespace Frostbot.commands
             await ctx.Channel.SendMessageAsync(embed: skippedEmbed);
         }
 
+        [Command("seek")]
+        public async Task Seek(CommandContext ctx, TimeSpan position)
+        {
+            var lavalinkInstance = ctx.Client.GetLavalink();
+            var node = lavalinkInstance.ConnectedNodes.Values.First();
+            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
+
+            await Connection(ctx, conn);
+            if(conn == null)
+                return;
+
+            if(conn.CurrentState.CurrentTrack == null)
+            {
+                await ctx.Channel.SendMessageAsync("No track is currently playing");
+                return;
+            }
+
+            if(position.TotalMilliseconds < 0 || position > conn.CurrentState.CurrentTrack.Length)
+            {
+                await ctx.Channel.SendMessageAsync("Invalid seek position");
+                return;
+            }
+
+            await conn.SeekAsync(position);
+
+            var seekEmbed = new DiscordEmbedBuilder()
+            {
+                Color = DiscordColor.Purple,
+                Title = "Seek",
+                Description = $"Track seeked to {position}"
+            };
+
+            await ctx.Channel.SendMessageAsync(embed: seekEmbed);
+        }
+
+        [Command("forward")]
+        public async Task Forward(CommandContext ctx, TimeSpan amount)
+        {
+            var lavalinkInstance = ctx.Client.GetLavalink();
+            var node = lavalinkInstance.ConnectedNodes.Values.First();
+            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
+
+            await Connection(ctx, conn);
+            if(conn == null)
+                return;
+
+            if(conn.CurrentState.CurrentTrack == null)
+            {
+                await ctx.Channel.SendMessageAsync("No track is currently playing");
+                return;
+            }
+
+            var currentPosition = conn.CurrentState.PlaybackPosition;
+            var newPosition = currentPosition + amount;
+
+            if(newPosition > conn.CurrentState.CurrentTrack.Length)
+            {
+                await ctx.Channel.SendMessageAsync("Cannot forward beyond the end of the track");
+                return;
+            }
+
+            await conn.SeekAsync(newPosition);
+
+            var forwardEmbed = new DiscordEmbedBuilder()
+            {
+                Color = DiscordColor.Purple,
+                Title = "Forward",
+                Description = $"Track forwarded by {amount}."
+            };
+
+            await ctx.Channel.SendMessageAsync(embed: forwardEmbed);
+        }
+
+        [Command("rewind")]
+        public async Task Rewind(CommandContext ctx, TimeSpan amount)
+        {
+            var lavalinkInstance = ctx.Client.GetLavalink();
+            var node = lavalinkInstance.ConnectedNodes.Values.First();
+            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
+
+            await Connection(ctx, conn);
+            if(conn == null)
+                return;
+
+            if(conn.CurrentState.CurrentTrack == null)
+            {
+                await ctx.Channel.SendMessageAsync("No track is currently playing");
+                return;
+            }
+
+            var currentPosition = conn.CurrentState.PlaybackPosition;
+            var newPosition = currentPosition - amount;
+
+            if(newPosition < TimeSpan.Zero)
+            {
+                await ctx.Channel.SendMessageAsync("Cannot rewind beyond the start of the track");
+                return;
+            }
+
+            await conn.SeekAsync(newPosition);
+
+            var rewindEmbed = new DiscordEmbedBuilder()
+            {
+                Color = DiscordColor.Purple,
+                Title = "Rewind",
+                Description = $"Track rewinded by {amount}."
+            };
+
+            await ctx.Channel.SendMessageAsync(embed: rewindEmbed);
+        }
+
         [Command("repeat")]
         public async Task Reapeat(CommandContext ctx)
         {
@@ -436,6 +547,28 @@ namespace Frostbot.commands
                 disconnectTimer?.Dispose();
         }
 
+        [Command("remove")]
+        public async Task Remove(CommandContext ctx, int index)
+        {
+            if(index < 1 || index > trackQueue.Count)
+            {
+                await ctx.Channel.SendMessageAsync("Invalid track index");
+                return;
+            }
+
+            var removedTrack = trackQueue[index - 1];
+            trackQueue.RemoveAt(index - 1);
+
+            var removeEmbed = new DiscordEmbedBuilder()
+            {
+                Color = DiscordColor.Purple,
+                Title = $"Removed track at index {index}",
+                Description = $"{removedTrack.Title} - {removedTrack.Author}"
+            };
+
+            await ctx.Channel.SendMessageAsync(embed: removeEmbed);
+        }
+
         [Command("viewqueue")]
         public async Task ViewQueue(CommandContext ctx)
         {
@@ -460,6 +593,35 @@ namespace Frostbot.commands
 
                 await ctx.RespondAsync(embed: embed);
             }
+        }
+
+        [Command("volume")]
+        public async Task SetVolume(CommandContext ctx, int volume)
+        {
+            if(volume < 0 || volume > 500)
+            {
+                await ctx.Channel.SendMessageAsync("Volume must be between 0 and 500");
+                return;
+            }
+
+            var lavalinkInstance = ctx.Client.GetLavalink();
+            var node = lavalinkInstance.ConnectedNodes.Values.First();
+            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
+
+            await Connection(ctx, conn);
+            if(conn == null)
+                return;
+
+            await conn.SetVolumeAsync(volume);
+
+            var volumeEmbed = new DiscordEmbedBuilder()
+            {
+                Color = DiscordColor.Purple,
+                Title = "Volume Set",
+                Description = $"Volume set to {volume}%"
+            };
+
+            await ctx.Channel.SendMessageAsync(embed: volumeEmbed);
         }
 
         private async Task LavalinkSocketOnTrackEnd(CommandContext ctx, LavalinkGuildConnection conn, TrackFinishEventArgs eventArgs)
