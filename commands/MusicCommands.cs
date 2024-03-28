@@ -386,21 +386,21 @@ namespace Frostbot.commands
         public async Task Reapeat(CommandContext ctx)
         {
             await VoiceState(ctx);
-            if (ctx.Member.VoiceState == null)
+            if(ctx.Member.VoiceState == null)
                 return;
 
             var userVC = ctx.Member.VoiceState.Channel;
             var lavalinkInstance = ctx.Client.GetLavalink();
 
             await ChannelAndConnection(ctx, userVC, lavalinkInstance);
-            if (userVC == null || !lavalinkInstance.ConnectedNodes.Any() || userVC.Type != ChannelType.Voice)
+            if(userVC == null || !lavalinkInstance.ConnectedNodes.Any() || userVC.Type != ChannelType.Voice)
                 return;
 
             var node = lavalinkInstance.ConnectedNodes.Values.First();
             var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
 
             await Connection(ctx, conn);
-            if (conn == null || conn.CurrentState.CurrentTrack == null)
+            if(conn == null || conn.CurrentState.CurrentTrack == null)
                 return;
 
             var currentTrack = conn.CurrentState.CurrentTrack;
@@ -534,7 +534,7 @@ namespace Frostbot.commands
 
             var searchQuery = await node.Rest.GetTracksAsync(url);
 
-            if (searchQuery.LoadResultType != LavalinkLoadResultType.NoMatches && searchQuery.LoadResultType != LavalinkLoadResultType.LoadFailed)
+            if(searchQuery.LoadResultType != LavalinkLoadResultType.NoMatches && searchQuery.LoadResultType != LavalinkLoadResultType.LoadFailed)
             {
                 var musicTrack = searchQuery.Tracks.First();
                 trackQueue.Add(musicTrack);
@@ -543,7 +543,7 @@ namespace Frostbot.commands
             else
                 await ctx.Channel.SendMessageAsync($"Failed to find track with provided URL: {url}");
 
-            if (trackQueue.Count == 1)
+            if(trackQueue.Count == 1)
                 disconnectTimer?.Dispose();
         }
 
@@ -694,7 +694,7 @@ namespace Frostbot.commands
         {
             if(conn == null)
                 await ctx.Channel.SendMessageAsync("Connection failed");
-            else if (conn.CurrentState.CurrentTrack == null)
+            else if(conn.CurrentState.CurrentTrack == null)
                 await ctx.Channel.SendMessageAsync("No track is playing now");
         }
 
@@ -711,6 +711,38 @@ namespace Frostbot.commands
                 Title = "Successfully playing next track",
                 Description = musicDescription
             };
+        }
+
+        //additional commands
+
+        [Command("gothic")]
+        public async Task Gothic(CommandContext ctx)
+        {
+            var Url1 = new Uri("https://www.youtube.com/watch?v=lCnNMiR5UCU");
+            await PlayUrl(ctx, Url1);
+
+            var urls = new List<Uri>
+            {
+                new Uri("https://www.youtube.com/watch?v=Qx2ZSGOOIpo"),
+                new Uri("https://www.youtube.com/watch?v=ww9pHXl4Clk"),
+                new Uri("https://www.youtube.com/watch?v=y_ifjEYEMuY"),
+                new Uri("https://www.youtube.com/watch?v=l4KqQkaggis"),
+                new Uri("https://www.youtube.com/watch?v=05aPGgNXLAc"),
+                new Uri("https://www.youtube.com/watch?v=dLLRUtql_ys"),
+                new Uri("https://www.youtube.com/watch?v=sFDXdBCdnWE"),
+                new Uri("https://www.youtube.com/watch?v=Xrwz0r4bjro"),
+                new Uri("https://www.youtube.com/watch?v=MGi1hqjhwdA")
+            };
+
+            foreach(var url in urls)
+                await QueueFromURL(ctx, url);
+        }
+
+        [Command("2137")]
+        public async Task Barka(CommandContext ctx)
+        {
+            var Url = new Uri("https://www.youtube.com/watch?v=0qzLRlQFFQ4");
+            await PlayUrl(ctx, Url);
         }
     }
 }
