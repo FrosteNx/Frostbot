@@ -42,17 +42,18 @@ namespace Frostbot
 
             Commands.RegisterCommands<TestCommands>();
             Commands.RegisterCommands<MusicCommands>();
+            Commands.RegisterCommands<MathCommands>();
 
             var endpoint = new ConnectionEndpoint
             {
-                Hostname = "penacony.hehe.rest",
-                Port = 443,
-                Secured = true
+                Hostname = "lavalink-v3.oryzen.xyz",
+                Port = 80,
+                Secured = false
             };
 
             var lavalinkConfig = new LavalinkConfiguration
             {
-                Password = "youshallnotpass",
+                Password = "oryzen.xyz",
                 RestEndpoint = endpoint,
                 SocketEndpoint = endpoint
             };

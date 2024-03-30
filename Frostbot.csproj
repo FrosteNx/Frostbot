@@ -163,6 +163,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="commands\MathCommands.cs" />
     <Compile Include="commands\MusicCommands.cs" />
     <Compile Include="commands\TestCommands.cs" />
     <Compile Include="config\JSONReader.cs" />
