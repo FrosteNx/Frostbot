@@ -16,7 +16,7 @@ namespace Frostbot.commands
     {
         private List<LavalinkTrack> trackQueue = new List<LavalinkTrack>();
         private Timer disconnectTimer;
-        private int disconnectDelayInSeconds = 10;
+        private int disconnectDelayInSeconds = 60;
         private bool shouldSkipTrack = false;
         private Dictionary<ulong, bool> trackLoopingStates = new Dictionary<ulong, bool>();
         private LavalinkTrack loopTrack = null;

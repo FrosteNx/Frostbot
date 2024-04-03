@@ -46,14 +46,14 @@ namespace Frostbot
 
             var endpoint = new ConnectionEndpoint
             {
-                Hostname = "lavalink-v3.oryzen.xyz",
-                Port = 80,
-                Secured = false
+                Hostname = "penacony.hehe.rest",
+                Port = 443,
+                Secured = true
             };
 
             var lavalinkConfig = new LavalinkConfiguration
             {
-                Password = "oryzen.xyz",
+                Password = "youshallnotpass",
                 RestEndpoint = endpoint,
                 SocketEndpoint = endpoint
             };
